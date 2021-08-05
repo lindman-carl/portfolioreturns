@@ -30,9 +30,11 @@ def parseArgv() -> tuple:
 
 if __name__ == "__main__":
     start_runtime = time.time() # for calculating runtime
-    print("\n" + "="*10 + " PORTFOLIO RETURNS CALCULATOR " + "="*10 + "\n")
-    tickers, weights, period = parseArgv()
     
+    print("\n" + "="*10 + " PORTFOLIO RETURNS CALCULATOR " + "="*10 + "\n")
+    
+    tickers, weights, period = parseArgv()
+
     portfolio = Portfolio(tickers, weights, period)
     portfolio.printReturns()
 
