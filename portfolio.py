@@ -8,85 +8,73 @@ from stock import Stock
 
 class Portfolio:
     
-    def __init__(self, tickers, weights, period):
+    def __init__(self, tickers, weights, period=10, start_date=None, end_date=None, quick_mode=False):
         self.ticker_names = tickers
-        self.stocks = [Stock(ticker) for ticker in self.ticker_names]
+        self.stocks = [Stock(ticker, quick_mode=quick_mode) for ticker in self.ticker_names]
         
-        # self.tickersInfo = self.loadTickerInfo()
-        
-        self.weights = weights
+        self.weights = weights      
+        # in case tickers haven't been asigned weights. Lets face it, it's too tedious
         while (len(self.weights) < len(self.stocks)):
             self.weights.append(1)
+       
+        # initialize dates as None if no dates are provided     
+        self.start_date = None
+        self.end_date = None
         
-        self.period = period
+        self.quick_mode=quick_mode
+        
+        # if no start_date or end_date has been input then calculate them by period
+        if start_date == None and end_date == None:
+            self.period = period
+            self.start_date = (datetime.now() - relativedelta(years=period, days=1)).date()
+            self.end_date = (datetime.now() - relativedelta(days=1)).date()
+        else:
+            if start_date != None:
+                self.start_date = start_date
+            else:
+                self.start_date = (datetime.now() - relativedelta(years=period, days=1)).date()
+            
+            if end_date != None:
+                self.end_date = end_date
+            else:
+                self.end_date = (datetime.now() - relativedelta(days=1)).date()
 
-        self.start_date = (datetime.now() - relativedelta(years=period, days=1)).date()
-        self.end_date = (datetime.now() - relativedelta(days=1)).date()
-        
-        # self.data = yf.download(tickers=self.ticker_names, start=self.start_date, end=self.end_date, group_by=["Ticker", "Date"], progress=False)
-        
-        # self.adjustedReturns = [self.calculateAdjustedReturns(self.data[x]) * self.weights[i] for i, x in enumerate(self.ticker_names)]
-        # self.averageAdjustedReturns = self.calculateAverageAdjustedReturns()
+        self.adjustedReturns = self.calculateAdjustedReturns()
+        self.averageAdjustedReturns = self.calculateAverageAdjustedReturns(self.adjustedReturns)
         self.weightsPercentage = [self.weights[i] / sum(self.weights) for i in range(len(self.weights))]
-
-    def loadTickerInfo(self):
-        print("Loading data...\n")
-        return [self.tickers.tickers[self.ticker_names[i]].info for i in range(len(self.ticker_names)-1)]
-
-    def calculateReturns(self, data) -> float:
-        first_price = data["Close"].loc[data.first_valid_index()]
-        last_price = data["Close"].loc[data.last_valid_index()]
         
-        return (last_price - first_price) / first_price * 100
-
-    def calculateAdjustedReturns(self) -> float:
-        # returns = 0.0
-        # for i in range(len(self.stocks)):
-        #     returns += self.stocks[i] * self.weights[i]
-        
-        # return returns
-        pass
+        # TODO: Fix sort by
+        if not self.quick_mode:
+            self.full_names = [i.stock_info["shortName"] for i in self.stocks]
+            self.stocks_dataframe = pd.DataFrame(list(zip(self.ticker_names, self.adjustedReturns, self.weightsPercentage, self.full_names)), columns=["Ticker", "Returns", "Weights" , "Full name"]).sort_values(by="Returns", ascending=False)
+            # print(self.stocks_dataframe)
     
     def printReturns(self):
-
-        print(f"Returns {self.start_date} -> {self.end_date} ({self.period} years) or since IPO\n")
-
+        print(f"\nReturns {self.start_date} -> {self.end_date} or since IPO\n")
         print("TICKER".ljust(10) + "RETURNS%".rjust(10) + "WEIGTH%".rjust(10) + "\n")
         
-        for i in range(len(self.stocks)):
-            print(f"{self.stocks[i].ticker_name:10}{self.stocks[i].calculateAdjustedReturns(self.start_date):9.2f}%{self.weightsPercentage[i]*100:9.2f}%    {self.stocks[i].stock_info['shortName']}")
+        if not self.quick_mode:
+            for i in range(len(self.stocks)):
+                print(f"{self.stocks[i].ticker_name:10}{self.stocks[i].calculateAdjustedReturns(self.start_date):9.2f}%{self.weightsPercentage[i]*100:9.2f}%     {self.stocks[i].stock_info['shortName']:35}")
+        else:
+            for i in range(len(self.stocks)):
+                print(f"{self.stocks[i].ticker_name:10}{self.stocks[i].calculateAdjustedReturns(self.start_date):9.2f}%{self.weightsPercentage[i]*100:9.2f}%")
 
-        print(f"\nAverage returns: {self.calculateAverageAdjustedReturns():.2f}%\n")
+        print(f"\nAverage returns: {self.averageAdjustedReturns:.2f}%\n")
     
-    def plotPortfolio(self):
-        # returnsDF = 
-        print(self.data.index)
-        
-    def saveStocksAsCsv(self):
-        for ticker in self.ticker_names:
-            # dropna
-            # self.data[ticker].dropna(subset=["Adj Close"]).to_csv(path_or_buf=f"./data/{ticker}_data.csv", columns=["Adj Close"]) 
-            if not os.path.exists(f"./data/{ticker}/"): os.mkdir(f"./data/{ticker}/")
-            if not os.path.isfile(f"./data/{ticker}/{ticker}_data.csv"):
-                print(f"{ticker} saving cache1")
-                self.data[ticker].to_csv(path_or_buf=f"./data/{ticker}/{ticker}_data.csv", columns=["Adj Close"])
-            else:
-                compare = pd.read_csv(f"./data/{ticker}/{ticker}_data.csv", sep=",", index_col="Date", squeeze=True)
-                # print(type(compare))
-                # print(compare)
-                # print(type(self.data[ticker].get("Adj Close")))
-                # print(self.data[ticker].get("Adj Close"))
-
-                if self.data[ticker].get("Adj Close").equals(compare):
-                    print(f"{ticker} data is already cached")
-                else:
-                    print(f"{ticker} saving cache2")
-                    self.data[ticker].to_csv(path_or_buf=f"./data/{ticker}/{ticker}_data.csv", columns=["Adj Close"])
-                
-        
-    def calculateAverageAdjustedReturns(self) -> float:
-        return sum([self.stocks[i].calculateAdjustedReturns(self.start_date) * self.weights[i] for i in range(len(self.stocks))]) / len(self.stocks)
+    def plotPortfolio(self, p):
+        # TODO: Plot portfolio returns
+        for stock in self.stocks:
+            stock.plotStock(str(self.start_date), p)
+        # self.stocks[0].plotStock()
     
+    def calculateAdjustedReturns(self):
+        return [self.stocks[i].calculateAdjustedReturns(self.start_date) * self.weights[i] for i in range(len(self.stocks))]
+    
+    def calculateAverageAdjustedReturns(self, adjustedReturns) -> float:
+        return sum(adjustedReturns) / len(self.stocks)
+    
+    # Getters
     def getAdjustedReturns(self) -> list:
         return self.adjustedReturns
     
